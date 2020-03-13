@@ -92,6 +92,7 @@ Shift register connections:
 
 void setup(void)
 {  
+  delay(10000);
     // It is necessary to set the SPI_ss (slave select) as an output before initializing the SPI 
     // library so that the arduino acts as a master, not a slave.  Once the arduino has been set to 
     // master, this pin can be repurposed and used for anything - such as controlling the chip select 
@@ -123,7 +124,12 @@ void loop(void)
     
     // Read in all 8 inputs of the SN74HC165 into a byte
     byte value = SPI.transfer(0x00);
-//    byte value/ = SPI.transfer(0x00);
+    byte value2 = SPI.transfer(0x00);
+    byte value3 = SPI.transfer(0x00);
+    byte value4 = SPI.transfer(0x00);
+    byte value5 = SPI.transfer(0x00);
+    byte value6 = SPI.transfer(0x00);
+    
 
     // Extract the individual input pin values from the byte
     boolean SN74HC165_pin_A = bitRead(value,0);  // get value of pin 11 of the SN74HC165
@@ -138,22 +144,40 @@ void loop(void)
     // For testing, set an LED to the value found on input G (pin 5) of the SN74HC165
     digitalWrite(led_output_pin, SN74HC165_pin_G);
 
-    if (!SN74HC165_pin_E) {
-      Keyboard.print(",");
-      delay(300);
+    if (value != 255 || value2 != 255 || value3 != 255 || value4 != 255 || value5 != 255 || value6 != 255) {
+      for (int i = 0; i < 32+3+16+2; i++) {
+        Keyboard.write(8);
+      }
+      Keyboard.print(value, BIN); 
+      Keyboard.print(" ");
+      Keyboard.print(value2, BIN);
+      Keyboard.print(" ");
+      Keyboard.print(value3, BIN);
+      Keyboard.print(" ");
+      Keyboard.print(value4, BIN);
+      Keyboard.print(" ");
+      Keyboard.print(value5, BIN);
+      Keyboard.print(" ");
+      Keyboard.print(value6, BIN);
     }
-    if (!SN74HC165_pin_F) {
-      Keyboard.print("P");
-      delay(300);
-    }
-    if (!SN74HC165_pin_G) {
-      Keyboard.print("L");
-      delay(300);
-    }
-    if (!SN74HC165_pin_H) {
-      Keyboard.print(".");
-      delay(300);
-    }
+    delay(300);
+//
+//    if (!SN74HC165_pin_E) {
+//      Keyboard.print(",");
+//      delay(300);
+//    }
+//    if (!SN74HC165_pin_F) {
+//      Keyboard.print("P");
+//      delay(300);
+//    }
+//    if (!SN74HC165_pin_G) {
+//      Keyboard.print("L");
+//      delay(300);
+//    }
+//    if (!SN74HC165_pin_H) {
+//      Keyboard.print(".");
+//      delay(300);
+//    }
     
     
     // Start polling the inputs again
