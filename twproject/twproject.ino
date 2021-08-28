@@ -90,96 +90,101 @@ Shift register connections:
 #include <SPI.h>
 #include "Keyboard.h"
 
+const char key_mappings[48] = {
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+  'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+  'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+  'Y', 'Z', '1', '2', '3', '4', '5', '6',
+  '7', '8', '9', '0', '?', '!', '@', '#',
+  '$', '%', '^', '&', '*', '(', ')', '-'};
+
+const uint8_t PRESSABLE_KEYS = 44;
+
+byte registers[6] = {0,0,0,0,0,0};
+uint8_t press_counter[48] = {0};
+
+// Tunables
+const uint8_t MAX_CNT_VAL = 15;
+const uint8_t LOOP_DELAY_MS = 10;
+
 void setup(void)
-{  
+{
+  // Delay so we can upload new code before keyboard is taking over
   delay(10000);
-    // It is necessary to set the SPI_ss (slave select) as an output before initializing the SPI 
-    // library so that the arduino acts as a master, not a slave.  Once the arduino has been set to 
-    // master, this pin can be repurposed and used for anything - such as controlling the chip select 
-    // on one of the SPI devices.
-    
-    pinMode(SPI_ss, OUTPUT);  
 
-    // Set up the SPI bus
-    SPI.begin();
-    SPI.setDataMode(SPI_MODE0);  
-    SPI.setBitOrder(MSBFIRST);
-    SPI.setClockDivider(SPI_CLOCK_DIV2);
+  pinMode(SPI_ss, OUTPUT);  
 
-    // Set pinmodes for the digital outputs
-    pinMode(PLSR_SH_LD_pin, OUTPUT);
-    pinMode(led_output_pin, OUTPUT);    
+  // Set up the SPI bus
+  SPI.begin();
+  SPI.setDataMode(SPI_MODE0);  
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setClockDivider(SPI_CLOCK_DIV2);
 
-    Keyboard.begin();
+  // Set pinmodes for the digital outputs
+  pinMode(PLSR_SH_LD_pin, OUTPUT);
+  pinMode(led_output_pin, OUTPUT);    
 
-    // Tell the SN74HC165 Parallel-load shift register to poll the inputs
-    digitalWrite(PLSR_SH_LD_pin, LOW);
+  Keyboard.begin();
+
+  // Tell the SN74HC165 Parallel-load shift register to poll the inputs
+  digitalWrite(PLSR_SH_LD_pin, LOW);
 }
 
+void read_shift_registers(void) {
+  // Latch the inputs into the shift registers
+  digitalWrite(PLSR_SH_LD_pin, HIGH);
+  
+  // Read in all 8 inputs of the SN74HC165 into a byte
+  for (uint8_t i = 0; i < 6; i++) {
+    registers[i] = SPI.transfer(0x00);
+  }
+
+  // Unlatch shift registers
+  digitalWrite(PLSR_SH_LD_pin, LOW);
+}
+
+void handle_key_measurement(uint8_t idx, uint8_t key_value) {
+
+  // Key can have two states, IDLE and PRESSED
+  // When press_counter is zero, it is in IDLE state
+  // Otherwise, it is in PRESSED state
+
+  // A key stroke is registered when the value is positive while
+  // in IDLE state. The state then transitions to PRESSED.
+  // The state is only reset to IDLE when the value has been 0
+  // for MAX_CNT_VAL times.
+  
+  if (press_counter[idx] == 0) {
+    // State IDLE
+    if (key_value) {
+      Keyboard.write(key_mappings[idx]);
+      press_counter[idx] = MAX_CNT_VAL;
+      // Effectively transitioning to PRESSED state now.
+    }
+  } else {
+    // State PRESSED
+    if (key_value) {
+      press_counter[idx] = MAX_CNT_VAL;
+    } else {
+      press_counter[idx] = press_counter[idx] - 1;
+      // Effectively transitioning to IDLE when it reaches 0.
+    }
+  }
+}
 
 void loop(void)
 {
-    // Latch the inputs into the shift register
-    digitalWrite(PLSR_SH_LD_pin, HIGH);    
-    
-    // Read in all 8 inputs of the SN74HC165 into a byte
-    byte value = SPI.transfer(0x00);
-    byte value2 = SPI.transfer(0x00);
-    byte value3 = SPI.transfer(0x00);
-    byte value4 = SPI.transfer(0x00);
-    byte value5 = SPI.transfer(0x00);
-    byte value6 = SPI.transfer(0x00);
-    
 
-    // Extract the individual input pin values from the byte
-    boolean SN74HC165_pin_A = bitRead(value,0);  // get value of pin 11 of the SN74HC165
-    boolean SN74HC165_pin_B = bitRead(value,1);  // get value of pin 12 of the SN74HC165
-    boolean SN74HC165_pin_C = bitRead(value,2);  // get value of pin 13 of the SN74HC165
-    boolean SN74HC165_pin_D = bitRead(value,3);  // get value of pin 14 of the SN74HC165
-    boolean SN74HC165_pin_E = bitRead(value,4);  // get value of pin 3 of the SN74HC165
-    boolean SN74HC165_pin_F = bitRead(value,5);  // get value of pin 4 of the SN74HC165
-    boolean SN74HC165_pin_G = bitRead(value,6);  // get value of pin 5 of the SN74HC165
-    boolean SN74HC165_pin_H = bitRead(value,7);  // get value of pin 6 of the SN74HC165
-    
-    // For testing, set an LED to the value found on input G (pin 5) of the SN74HC165
-    digitalWrite(led_output_pin, SN74HC165_pin_G);
+  read_shift_registers();
 
-    if (value != 255 || value2 != 255 || value3 != 255 || value4 != 255 || value5 != 255 || value6 != 255) {
-      for (int i = 0; i < 32+3+16+2; i++) {
-        Keyboard.write(8);
-      }
-      Keyboard.print(value, BIN); 
-      Keyboard.print(" ");
-      Keyboard.print(value2, BIN);
-      Keyboard.print(" ");
-      Keyboard.print(value3, BIN);
-      Keyboard.print(" ");
-      Keyboard.print(value4, BIN);
-      Keyboard.print(" ");
-      Keyboard.print(value5, BIN);
-      Keyboard.print(" ");
-      Keyboard.print(value6, BIN);
-    }
-    delay(300);
-//
-//    if (!SN74HC165_pin_E) {
-//      Keyboard.print(",");
-//      delay(300);
-//    }
-//    if (!SN74HC165_pin_F) {
-//      Keyboard.print("P");
-//      delay(300);
-//    }
-//    if (!SN74HC165_pin_G) {
-//      Keyboard.print("L");
-//      delay(300);
-//    }
-//    if (!SN74HC165_pin_H) {
-//      Keyboard.print(".");
-//      delay(300);
-//    }
+  for (uint8_t i = 0; i < PRESSABLE_KEYS; i++) {
+    // Get the measurement
+    uint8_t b = i % 8;
+    uint8_t reg = i / 8;
+    uint8_t value = bitRead(registers[reg], b);
+    handle_key_measurement(i, value);    
+  }
+
+  delay(LOOP_DELAY_MS);
     
-    
-    // Start polling the inputs again
-    digitalWrite(PLSR_SH_LD_pin, LOW);
 }
